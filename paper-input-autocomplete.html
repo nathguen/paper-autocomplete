@@ -61,6 +61,10 @@ Example:
 
     paper-item {
       position: relative;
+      cursor: pointer;
+    }
+    paper-item.active {
+      background: rgb(220,220,220);
     }
 
     #clear{
@@ -72,6 +76,7 @@ Example:
     <div class="input-wrapper">
       <paper-input id="input"
         label="{{label}}"
+        on-keydown="_handleSuggestionTraversing"
         on-keyup="_handleSuggestions"
         disabled="{{disabled}}"
         invalid="{{invalid}}"
@@ -106,7 +111,7 @@ Example:
     </div>
     <paper-material elevation="1" id="suggestionsWrapper">
       <template is="dom-repeat" items="{{_suggestions}}">
-        <paper-item on-click="_selectSuggestion">
+        <paper-item on-mouseover="_handleSuggestionPreview" class$="{{setSuggestionClass(index, suggestionPreviewed)}}" on-click="_selectSuggestion">
           <div>{{item.text}}</div>
           <paper-ripple></paper-ripple>
         </paper-item>
@@ -362,6 +367,14 @@ Example:
           type: Number
       },
 
+      /**
+      * Used to mark which suggestion is being previewed (either by hover or by traversing on keyboard)
+      */
+      suggestionPreviewed: {
+          type: Number,
+          value: null
+      },
+
       _ariaDescribedBy: {
           type: String,
           value: ''
@@ -423,18 +436,62 @@ Example:
       this.$.suggestionsWrapper.style.display = 'none';
     },
 
+
+    /**
+    * Event fired when user hovers over a suggestion
+    */
+    _handleSuggestionPreview: function(event){
+      this.suggestionPreviewed = event.model.index;
+    },
+
+    /**
+    * Event fired when user presses a key in the input field.
+    * Used to determine if the 'up', 'down', 'right', or 'enter' keys were pressed.
+    */
+    _handleSuggestionTraversing: function(event){
+      if(event.keyCode === 40 || event.keyCode === 38 && this.source.length) { // 'down' (keyCode 40) or 'up' (keyCode 38) key pressed
+        // determine which direction user is traversing
+        if(event.keyCode === 38) {  // going up
+          if(this.suggestionPreviewed === null || this.suggestionPreviewed === 0) {
+            this.suggestionPreviewed = this.source.length - 1;
+          } else {
+            this.suggestionPreviewed --;
+          }
+        } else {  // going down
+          // check if the suggestions are visible
+          if(this.suggestionPreviewed !== null && this.suggestionPreviewed < this.source.length - 1) {
+            this.suggestionPreviewed ++;
+          } else {
+            this.suggestionPreviewed = 0;
+          }
+        }
+      } else if(event.keyCode === 13) { // 'enter' key pressed
+        if(this.suggestionPreviewed !== null) {
+          // selects the currently previewed suggestion
+          // simulates a click so that it works with current design
+          this.$.suggestionsWrapper.children[this.suggestionPreviewed].click();
+        }
+      } else if(event.keyCode === 39) { // 'right' key pressed
+        // fills in the selected value, but doesn't close the suggestionsWrapper
+        if(this.suggestionPreviewed !== null) {
+          this.$.input.value = this.source[this.suggestionPreviewed];
+        }
+      }
+    },
+
     /**
      * Event fired when the user types in the input field.
      *
      * @param {string} event fired
      */
     _handleSuggestions : function(event) {
+      // update the suggestions based on the value
       this.value = this.$.input.value;
       var value = event.target.value;
 
       if (value && value.length > 0) {
         this._handleSuggestionsAux(value);
-      } else {
+      } else if(event.keyCode !== 38 && event.keyCode !== 40) { // checks to make sure the 'up' or 'down' keys are not pressed
         this.$.clear.style.display = 'none';
         this._suggestions = [];
       }
@@ -518,6 +575,15 @@ Example:
      */
     getValue : function() {
       return this.value;
+    },
+
+
+    /**
+    * Sets the class for suggestions being previewed.
+    */
+    setSuggestionClass: function(itemIndex, previewedSuggestion){
+      if(itemIndex === previewedSuggestion)   return 'active';
+      else                                    return '';
     }
 
   });
